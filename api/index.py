@@ -1,34 +1,32 @@
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 import json
-from urllib.parse import parse_qs
+import os
 
-def handler(request):
-    # Enable CORS headers in response
-    headers = {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Content-Type': 'application/json',
-    }
-    
-    if request.method == 'OPTIONS':
-        return {
-            'statusCode': 200,
-            'headers': headers,
-            'body': ''
-        }
+app = FastAPI()
 
-    # Load marks data
-    with open('q-vercel-python.json') as f:
+# Enable CORS for all origins
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Path to the JSON data file (in the same directory as this file)
+DATA_FILE = os.path.join(os.path.dirname(__file__), "q-vercel-python.json")
+
+# Helper to load the data file and return a name->marks dict
+def load_marks():
+    with open(DATA_FILE, "r") as f:
         data = json.load(f)
+    return {item["name"]: item["marks"] for item in data}
 
-    # Parse query params
-    query_params = parse_qs(request.query_string)
-    names = query_params.get('name', [])
-
-    marks = [data.get(name) for name in names]
-
-    return {
-        'statusCode': 200,
-        'headers': headers,
-        'body': json.dumps({'marks': marks})
-    }
+@app.get("/api")
+async def get_marks(request: Request):
+    names = request.query_params.getlist("name")
+    marks_lookup = load_marks()
+    result = [marks_lookup.get(name, None) for name in names]
+    return JSONResponse(content={"marks": result})
